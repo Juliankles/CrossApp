@@ -1,14 +1,16 @@
-﻿using System.Runtime.InteropServices;
+﻿using Core;
 
-Console.WriteLine("CrossApp – практикум з крос-платформного програмування");
-Console.WriteLine("Студентка: Лесняк Юлiана, група ФЕI-34");
+EnvironmentReport report = EnvironmentInfo.Collect();
+
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+Console.WriteLine("CrossApp – інформація про середовище");
+Console.WriteLine("Студентка: Лесняк Юліана, група ФЕІ-34");
 Console.WriteLine(new string('-', 52));
-Console.WriteLine($"ОС (OSDescription) : {RuntimeInformation.OSDescription}");
-Console.WriteLine($"ОС (Environment) : {Environment.OSVersion}");
-Console.WriteLine($"Архiтектура процесу : {RuntimeInformation.ProcessArchitecture}");
-Console.WriteLine($"Версiя .NET (CLR) : {Environment.Version}");
-Console.WriteLine($"Runtime : {RuntimeInformation.FrameworkDescription}");
-Console.WriteLine($"Каталог застосунку : {AppContext.BaseDirectory}");
-Console.WriteLine($"Поточний каталог : {Environment.CurrentDirectory}");
+Console.WriteLine($"ОС              : {report.OsDescription}");
+Console.WriteLine($"Runtime         : {report.FrameworkDescription}");
+Console.WriteLine($"Архітектура     : {report.ProcessArchitecture}");
+Console.WriteLine($"RID (визначено) : {report.DetectedRid}");
+Console.WriteLine($"RID (від .NET)  : {report.ReportedRid}");
+Console.WriteLine($"Каталог         : {report.BaseDirectory}");
 Console.WriteLine(new string('-', 52));
-Console.WriteLine("Предметна область: Бiблiотека (Book, BookCopy, Reader, Loan)");
+Console.WriteLine("Предметна область: Бібліотека (Book, BookCopy, Reader, Loan)");
