@@ -49,6 +49,8 @@ dotnet build
 dotnet run --project src/Cli
 dotnet publish src/Cli -c Release -r win-x64 --self-contained true -o publish-self-contained
 dotnet publish src/Cli -c Release -r win-x64 --self-contained false -o publish-framework-dependent
+.\publish-self-contained\Cli.exe
+.\publish-framework-dependent\Cli.exe
 ```
 
 
