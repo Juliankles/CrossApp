@@ -88,6 +88,8 @@ dotnet publish src/Cli -c Release -r win-x64 --self-contained false -o publish-f
 
 BookDto(string Id, string Isbn, string Title, int Year, string? Author = null) — Author є nullable, оскільки в джерельних даних автор не завжди вказаний; решта полів обов'язкові.
 
+ReaderDto(string Id, string FullName, string? Contact = null) — другий доменний тип (читач бібліотеки), підготовлений як DTO для майбутнього використання (сховище читачів, лабораторна 5); Contact є nullable, оскільки не завжди відомий одразу при реєстрації.
+
 ImportResult<T>(IReadOnlyList<T> Items, IReadOnlyList<string> Errors) — узагальнений тип, що повертає одразу і успішно розібрані дані, і перелік помилок з номерами рядків, не перериваючи імпорт на першому дефекті.
 
 ### Чому record, а не class
