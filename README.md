@@ -73,3 +73,31 @@ dotnet publish src/Cli -c Release -r win-x64 --self-contained false -o publish-f
 - `Core/Dto/` — record-типи формату даних (тиждень 3)
 - `Core/Domain/` — сутності з поведінкою та інваріантами (тиждень 4)
 - `Core/Storage/` — реалізації сховищ (тиждень 5)
+
+
+## Лабораторна 3: Records, pattern matching, імпорт CSV
+
+### Формат файлу даних
+
+Файл: `data/sample.csv`
+Роздільник: `;` (крапка з комою)
+Кодування: UTF-8
+Перший рядок — заголовок (id;isbn;title;year)
+
+### Record-типи
+
+BookDto(string Id, string Isbn, string Title, int Year, string? Author = null) — Author є nullable, оскільки в джерельних даних автор не завжди вказаний; решта полів обов'язкові.
+
+ImportResult<T>(IReadOnlyList<T> Items, IReadOnlyList<string> Errors) — узагальнений тип, що повертає одразу і успішно розібрані дані, і перелік помилок з номерами рядків, не перериваючи імпорт на першому дефекті.
+
+### Чому record, а не class
+
+BookDto і ImportResult представляють дані (незмінний "знімок" прочитаного рядка чи результату імпорту), а не сутність з власною поведінкою і життєвим циклом — тому їм природно підходить record з рівністю за значенням, а не class.
+
+### Команди
+
+```
+dotnet run --project src/Cli
+dotnet run --project src/Cli -- data/sample.csv
+dotnet run --project src/Cli -- data/no-such-file.csv
+```
