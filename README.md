@@ -103,3 +103,27 @@ dotnet run --project src/Cli
 dotnet run --project src/Cli -- data/sample.csv
 dotnet run --project src/Cli -- data/no-such-file.csv
 ```
+
+
+## Лабораторна 4: Доменна модель — сутності, інваріанти, інкапсуляція
+
+### Обрані сутності
+
+BookCopy — примірник книги (властивості: Id, Isbn, IsIssued).
+Loan — видача примірника читачу (властивості: Id, CopyId, ReaderId, IssuedOn, ReturnedOn).
+
+### Інваріанти
+
+| Правило | Тип винятку | Метод |
+|---|---|---|
+| Ідентифікатор примірника не порожній | ArgumentException | BookCopy.Create |
+| ISBN не порожній | ArgumentException | BookCopy.Create |
+| Не можна повторно видати вже виданий примірник | InvalidOperationException | BookCopy.Issue |
+| Не можна повернути невиданий примірник | InvalidOperationException | BookCopy.Return |
+| Ідентифікатори видачі, примірника, читача не порожні | ArgumentException | Loan.Open |
+| Не можна закрити вже закриту видачу | InvalidOperationException | Loan.Close |
+| Дата повернення не раніше дати видачі | ArgumentOutOfRangeException | Loan.Close |
+
+### Чому DTO і сутність — різні типи
+
+BookDto/BookCopyDto переносять дані (з файлу чи для збереження) і не гарантують коректності — файл може містити будь-що. BookCopy і Loan — доменні сутності, які самі захищають свої правила: створити чи змінити їх в обхід перевірок неможливо. Зв'язок між ними — методи ToDto()/FromDto(), причому FromDto проходить ті самі перевірки, що й Create.

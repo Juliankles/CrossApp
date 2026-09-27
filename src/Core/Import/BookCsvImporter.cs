@@ -5,7 +5,6 @@ namespace Core.Import;
 
 public static class BookCsvImporter
 {
-    // Роздільник — крапка з комою: не конфліктує з комою в назвах книг.
     private const char Separator = ';';
 
     public static ImportResult<BookDto> Load(string path)
@@ -24,7 +23,7 @@ public static class BookCsvImporter
                 continue;
 
             if (number == 1 && line.StartsWith("id", StringComparison.OrdinalIgnoreCase))
-                continue; // рядок заголовків
+                continue; 
 
             switch (ParseLine(line))
             {
