@@ -127,3 +127,26 @@ Loan — видача примірника читачу (властивості:
 ### Чому DTO і сутність — різні типи
 
 BookDto/BookCopyDto переносять дані (з файлу чи для збереження) і не гарантують коректності — файл може містити будь-що. BookCopy і Loan — доменні сутності, які самі захищають свої правила: створити чи змінити їх в обхід перевірок неможливо. Зв'язок між ними — методи ToDto()/FromDto(), причому FromDto проходить ті самі перевірки, що й Create.
+
+
+## Лабораторна 5: Сервісний шар — інтерфейс, два сховища, ручний DI
+
+### Структура
+- `Core/Abstractions/IBookStore.cs` — контракт сховища (List, GetById, Add, Update, Remove)
+- `Core/Storage/InMemoryBookStore.cs` — сховище в пам'яті (Dictionary + початкові дані)
+- `Core/Storage/FileBookStore.cs` — файлове сховище (JSON, кеш, запис після кожної зміни)
+- `Core/Services/LendingService.cs` — бізнес-операції: AddBook, IssueCopy, ReturnCopy, WriteOffCopy
+- `Core/SampleData.cs` — 16 примірників для демонстрації
+- `Cli/Program.cs` — composition root: вибір реалізації сховища
+
+### Схема залежностей
+Cli → LendingService → IBookStore → InMemoryBookStore | FileBookStore
+
+### Запуск
+dotnet run --project src/Cli            — сховище в пам'яті, дані зникають після виходу
+dotnet run --project src/Cli -- --file  — файлове сховище, дані зберігаються між запусками
+
+Файл даних: `data/books.json` поруч зі зібраним застосунком (bin/Debug/net10.0/data/books.json).
+Формат: JSON-список BookCopyDto (Id, Isbn, IsIssued); видання і примірники зберігаються в одному списку, видання визначається полем Isbn.
+
+DI-контейнер (Microsoft.Extensions.DependencyInjection) не використовується: залежність передається через конструктор вручну в Program.cs.
