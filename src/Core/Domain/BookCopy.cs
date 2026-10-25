@@ -4,15 +4,17 @@ namespace Core.Domain;
 
 public sealed class BookCopy
 {
+    private bool _isIssued;
+
     public string Id { get; }
     public string Isbn { get; }
-    public bool IsIssued { get; private set; }
+    public bool IsIssued => _isIssued;
 
     private BookCopy(string id, string isbn, bool isIssued)
     {
         Id = id;
         Isbn = isbn;
-        IsIssued = isIssued;
+        _isIssued = isIssued;
     }
 
     public static BookCopy Create(string id, string isbn)
@@ -28,20 +30,20 @@ public sealed class BookCopy
 
     public void Issue()
     {
-        if (IsIssued)
+        if (_isIssued)
             throw new InvalidOperationException(
                 $"Примірник {Id} вже виданий, повторна видача неможлива");
 
-        IsIssued = true;
+        _isIssued = true; 
     }
 
     public void Return()
     {
-        if (!IsIssued)
+        if (!_isIssued)
             throw new InvalidOperationException(
                 $"Примірник {Id} не перебуває у видачі, повернення неможливе");
 
-        IsIssued = false;
+        _isIssued = false;
     }
 
     public BookCopyDto ToDto() => new(Id, Isbn, IsIssued);

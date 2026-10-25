@@ -2,12 +2,14 @@ namespace Core.Domain;
 
 public sealed class Loan
 {
+    private DateOnly? _returnedOn;
+
     public string Id { get; }
     public string CopyId { get; }
     public string ReaderId { get; }
     public DateOnly IssuedOn { get; }
-    public DateOnly? ReturnedOn { get; private set; }
-    public bool IsClosed => ReturnedOn is not null;
+    public DateOnly? ReturnedOn => _returnedOn;
+    public bool IsClosed => _returnedOn is not null;
 
     private Loan(string id, string copyId, string readerId, DateOnly issuedOn)
     {
@@ -15,9 +17,8 @@ public sealed class Loan
         CopyId = copyId;
         ReaderId = readerId;
         IssuedOn = issuedOn;
-        ReturnedOn = null;
+        _returnedOn = null;
     }
-
 
     public static Loan Open(string id, string copyId, string readerId, DateOnly issuedOn)
     {
@@ -43,7 +44,7 @@ public sealed class Loan
                 nameof(returnedOn), returnedOn,
                 $"Дата повернення не може бути раніше дати видачі ({IssuedOn})");
 
-        ReturnedOn = returnedOn;
+        _returnedOn = returnedOn;
     }
 
     public override string ToString() =>
