@@ -150,3 +150,29 @@ dotnet run --project src/Cli -- --file  — файлове сховище, да�
 Формат: JSON-список BookCopyDto (Id, Isbn, IsIssued); видання і примірники зберігаються в одному списку, видання визначається полем Isbn.
 
 DI-контейнер (Microsoft.Extensions.DependencyInjection) не використовується: залежність передається через конструктор вручну в Program.cs.
+
+
+
+## Лабораторна 6: Доменні події, делегати Action/Func, лямбди
+
+### Структура
+- `Core/Events/LendingChangeKind.cs` — вид події: BookAdded, CopyIssued, CopyReturned, CopyWrittenOff
+- `Core/Events/LendingChangedEventArgs.cs` — дані події: CopyId, Isbn, Kind, ReaderId, DueDate, At
+- `Core/Services/LendingService.cs` — подія `Changed`, метод `OnChanged`, пошук `FindAll(Func<BookCopy, bool>)`
+- `Cli/Program.cs` — підписка, відписка, запис у консоль і в `logs/app.log`
+
+### Як працює
+Сервіс піднімає подію `Changed` лише після успішної зміни стану. Якщо інваріант кидає виняток, події немає.
+Core не пише ні в консоль, ні у файл: це роблять підписники в Cli.
+
+Підписники:
+1. локальний метод `OnLendingChanged` — друкує рядок у консоль і дописує його в `logs/app.log`;
+2. лямбда `(_, _) => changes++` — лічильник подій (замикання над змінною `changes`).
+
+Після `service.Changed -= OnLendingChanged` операції виконуються, але рядків у консолі й лозі немає; лічильник продовжує рахувати.
+
+### Запуск
+dotnet run --project src/Cli
+dotnet run --project src/Cli -- --file
+
+Лог: `logs/app.log` поруч зі зібраним застосунком (bin/Debug/net10.0/logs/app.log), каталог створюється автоматично.
