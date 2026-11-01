@@ -1,6 +1,7 @@
 ﻿using Core;
 using Core.Abstractions;
 using Core.Domain;
+using Core.Events;
 using Core.Services;
 using Core.Storage;
 
@@ -15,7 +16,7 @@ Console.WriteLine($"Runtime         : {report.FrameworkDescription}");
 Console.WriteLine($"RID             : {report.DetectedRid}");
 Console.WriteLine(new string('-', 52));
 
-// ===== Composition root: єдине місце, де створюються конкретні класи =====
+// ===== Composition root =====
 bool useFile = args.Contains("--file");
 string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "books.json");
 
@@ -25,36 +26,78 @@ IBookStore store = useFile
 
 var service = new LendingService(store);
 
-
 Console.WriteLine($"Сховище: {store.GetType().Name}");
 if (useFile)
     Console.WriteLine($"Файл: {dataPath}");
 
+// ===== Лог-файл =====
+string logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
+Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+Console.WriteLine($"Лог: {logPath}");
+
+// ===== Підписник 1: локальний метод (консоль + файл) =====
+void OnLendingChanged(object? sender, LendingChangedEventArgs e)
+{
+    string details = e.Kind switch
+    {
+        LendingChangeKind.BookAdded      => $"додано примірник видання {e.Isbn}",
+        LendingChangeKind.CopyIssued     => $"видано читачу {e.ReaderId} до {e.DueDate:dd.MM.yyyy}",
+        LendingChangeKind.CopyReturned   => "повернуто на полицю",
+        LendingChangeKind.CopyWrittenOff => "списано",
+        _ => e.Kind.ToString()
+    };
+
+    string line = $"{e.At:HH:mm:ss} {e.Kind,-14} {e.CopyId} {details}";
+    Console.WriteLine(line);
+
+    try
+    {
+        File.AppendAllText(logPath, line + Environment.NewLine);
+    }
+    catch (IOException ex)
+    {
+        Console.WriteLine($"  (не вдалося записати в лог: {ex.Message})");
+    }
+}
+
+service.Changed += OnLendingChanged;
+
+// ===== Підписник 2: лямбда із замиканням над змінною changes =====
+int changes = 0;
+service.Changed += (_, _) => changes++;
+
+// ===== Сценарій: успішні операції =====
 Console.WriteLine();
-Console.WriteLine("=== Сценарій: додати, змінити, знайти ===");
+Console.WriteLine("=== Сценарій: події видачі ===");
 
-BookCopy created = service.AddBook("978-966-03-1234-5");
-Console.WriteLine($"Додано:            {created}");
+BookCopy copy = service.AddBook("978-966-03-1234-5");
+service.IssueCopy(copy.Id, "R-001");
+service.ReturnCopy(copy.Id);
+Console.WriteLine($"Подій отримано: {changes}");
 
-service.IssueCopy(created.Id);
-Console.WriteLine($"Після видачі:      {service.Find(created.Id)}");
-
-BookCopy second = service.AddBook("978-966-03-3456-7");
-service.IssueCopy(second.Id);
-service.ReturnCopy(second.Id);
-Console.WriteLine($"Видано й повернуто: {service.Find(second.Id)}");
-
+// ===== Сценарій відмови: виняток є, події немає =====
 Console.WriteLine();
-Console.WriteLine($"Усі примірники у сховищі ({service.All().Count}):");
-foreach (BookCopy c in service.All())
+Console.WriteLine("=== Сценарій відмови: виняток є, події немає ===");
+TryDo("видача неіснуючого примірника", () => service.IssueCopy("C-404", "R-001"));
+TryDo("видача без читача", () => service.IssueCopy(copy.Id, ""));
+TryDo("повернення примірника, що вже на полиці", () => service.ReturnCopy(copy.Id));
+Console.WriteLine($"Подій отримано: {changes}");
+
+// ===== Відписка =====
+Console.WriteLine();
+Console.WriteLine("=== Після відписки (-=) ===");
+service.Changed -= OnLendingChanged;
+service.IssueCopy(copy.Id, "R-002");   // тиха операція: дані змінюються, рядка події немає
+Console.WriteLine($"Стан примірника: {service.Find(copy.Id)}");
+Console.WriteLine($"Подій отримано: {changes}");   // +1 лише від лямбди-лічильника
+
+// ===== Func замість події: FindAll =====
+Console.WriteLine();
+Console.WriteLine("=== FindAll(c => c.IsIssued): видані примірники ===");
+IReadOnlyList<BookCopy> issued = service.FindAll(c => c.IsIssued);
+foreach (BookCopy c in issued)
     Console.WriteLine($"  {c}");
-
-Console.WriteLine();
-Console.WriteLine("=== Сценарій відмови ===");
-TryDo("видача неіснуючого примірника", () => service.IssueCopy("C-404"));
-TryDo("повернення неіснуючого примірника", () => service.ReturnCopy("C-404"));
-TryDo("додавання примірника з уже наявним id",
-    () => store.Add(BookCopy.Create(created.Id, "978-966-03-1234-5")));
+Console.WriteLine($"Усього виданих: {issued.Count}");
 
 return 0;
 
@@ -65,8 +108,8 @@ static void TryDo(string title, Action action)
         action();
         Console.WriteLine($"  {title}: помилки не виникло");
     }
-    catch (InvalidOperationException ex)
+    catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
     {
-        Console.WriteLine($"  {title}: відмова — {ex.Message}");
+        Console.WriteLine($"  {title}: помилка — {ex.Message}");
     }
 }
