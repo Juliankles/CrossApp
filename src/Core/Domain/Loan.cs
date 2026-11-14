@@ -11,6 +11,15 @@ public sealed class Loan
     public DateOnly? ReturnedOn => _returnedOn;
     public bool IsClosed => _returnedOn is not null;
 
+    // Строк видачі — 14 днів, як у LendingService.IssueCopy
+    public const int LoanDays = 14;
+
+    // Дата, до якої треба повернути примірник
+    public DateOnly DueDate => IssuedOn.AddDays(LoanDays);
+
+    // Видача прострочена, якщо примірник ще не повернули, а дата повернення вже минула
+    public bool IsOverdue(DateOnly today) => !IsClosed && DueDate < today;
+
     private Loan(string id, string copyId, string readerId, DateOnly issuedOn)
     {
         Id = id;
