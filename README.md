@@ -176,3 +176,42 @@ dotnet run --project src/Cli
 dotnet run --project src/Cli -- --file
 
 Лог: `logs/app.log` поруч зі зібраним застосунком (bin/Debug/net10.0/logs/app.log), каталог створюється автоматично.
+
+
+
+## Лабораторна 7: Звіти через LINQ
+
+### Структура
+- `Core/Domain/Book.cs` — видання (ISBN, назва, автор, рік, жанр)
+- `Core/Domain/Loan.cs` — додано `DueDate` (дата видачі + 14 днів) і `IsOverdue(today)`
+- `Core/SampleData.cs` — 12 видань (6 жанрів), 20 примірників, 18 видач (3 прострочені)
+- `Core/Reports/ReaderLine.cs`, `OverdueLine.cs`, `GenreSummary.cs` — record-DTO звітів
+- `Core/Reports/ReportService.cs` — усі LINQ-запити
+- `Cli/Program.cs` — підкоманди; лише виклики ReportService і вивід, жодного Where/GroupBy
+
+### Звіти
+| Команда | Метод | Питання | Оператори |
+|---|---|---|---|
+| report-top | TopReaders | хто з читачів бере найбільше книжок (топ-5) | GroupBy, Select, OrderByDescending, ThenBy, Take |
+| report-overdue | Overdue | які видачі прострочені | Where, OrderBy, ThenBy, Select |
+| report-genres | ByGenre | скільки видань кожного жанру і з яких років | GroupBy, Count, Min, Max, OrderByDescending |
+| report-sum | CopiesPerEdition | скільки в середньому примірників на одне видання | GroupBy, Sum, Average, Max |
+
+Додаткові команди: `report-lazy` — демо відкладеного виконання; `report-empty` — усі звіти на порожніх даних; `events` — сценарій подій з лаби 6.
+
+Видання і видачі беруться з SampleData (сховище для них з'явиться разом із базою даних), примірники — зі сховища через `service.All()`, тому `report-sum` працює і з `--file`.
+
+### Запуск
+dotnet run --project src/Cli -- report-top
+dotnet run --project src/Cli -- report-overdue
+dotnet run --project src/Cli -- report-genres
+dotnet run --project src/Cli -- report-sum
+dotnet run --project src/Cli -- report-lazy
+dotnet run --project src/Cli -- --file report-sum
+
+### Відкладене виконання
+Метод `ReportService.OverdueQuery` повертає `IEnumerable<Loan>` без `ToList`, тому в момент виклику запит лише описується, а джерело не перебирається.
+Запит виконується тоді, коли викликається завершальний оператор: `Count()`, `ToList()` або `foreach`, і щоразу заново.
+У демо `report-lazy` перший `Count()` дав 3, а після додавання в джерело простроченої видачі L-999 другий `Count()` дав 4, бо запит виконався вже на зміненому списку.
+Після `ToList()` результат зафіксовано: коли джерело очистили, запит дає 0, а у знімку лишилось 4 записи.
+
