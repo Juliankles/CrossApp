@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Core;
 using Core.Abstractions;
 using Core.Domain;
@@ -111,12 +112,74 @@ switch (command)
         RunEventsScenario();
         break;
 
+    case "import":
+        await RunImportAsync("catalog.json", new JsonCatalogImporter());
+        break;
+
+    case "import-bad":
+        await RunImportAsync("catalog-bad.json", new JsonCatalogImporter());
+        break;
+
+    case "import-slow":
+        // 0,5 с на кожен запис і тайм-аут 2 с: імпорт гарантовано не встигне завершитися
+        await RunImportAsync("catalog.json", new JsonCatalogImporter(TimeSpan.FromMilliseconds(500)),
+                             timeout: TimeSpan.FromSeconds(2));
+        break;
+
+    case "import-missing":
+        await RunImportAsync("no-such-file.json", new JsonCatalogImporter());
+        break;
+
     default:
         Console.WriteLine("Команди: report-top | report-overdue | report-genres | report-sum | report-lazy | report-empty | events");
+        Console.WriteLine("         import | import-bad | import-slow | import-missing");
         break;
 }
 
 return 0;
+
+// Асинхронний імпорт каталогу (лаба 8): Ctrl+C або тайм-аут скасовують операцію
+async Task RunImportAsync(string fileName, ICatalogImporter importer, TimeSpan? timeout = null)
+{
+    string importPath = Path.GetFullPath(Path.Combine("data", fileName));
+    Console.WriteLine($"=== Імпорт каталогу: {importPath} ===");
+    Console.WriteLine("(Ctrl+C — скасувати імпорт)");
+
+    using var cts = new CancellationTokenSource();
+
+    // Ctrl+C: не завершувати програму, а надіслати сигнал скасування
+    ConsoleCancelEventHandler onCancel = (_, e) => { e.Cancel = true; cts.Cancel(); };
+    Console.CancelKeyPress += onCancel;
+
+    if (timeout is not null)
+        cts.CancelAfter(timeout.Value);
+
+    try
+    {
+        int added = await service.ImportAsync(importer, importPath, cts.Token);
+        Console.WriteLine($"Імпортовано записів: {added}");
+    }
+    catch (OperationCanceledException)          // першим: скасування — це не помилка
+    {
+        Console.WriteLine("Імпорт скасовано.");
+    }
+    catch (DomainException ex)                  // порушення бізнес-правила / погані дані
+    {
+        Console.WriteLine($"Дані відхилено: {ex.Message}");
+    }
+    catch (FileNotFoundException)               // технічна помилка: немає файлу
+    {
+        Console.WriteLine($"Файл не знайдено: {importPath}");
+    }
+    catch (JsonException ex)                    // технічна помилка: файл не є коректним JSON
+    {
+        Console.WriteLine($"Файл пошкоджено (некоректний JSON): {ex.Message}");
+    }
+    finally
+    {
+        Console.CancelKeyPress -= onCancel;
+    }
+}
 
 // Демо відкладеного виконання
 void RunLazyDemo()
@@ -221,7 +284,7 @@ static void TryDo(string title, Action action)
         action();
         Console.WriteLine($"  {title}: помилки не виникло");
     }
-    catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+    catch (Exception ex) when (ex is DomainException or ArgumentException)
     {
         Console.WriteLine($"  {title}: помилка — {ex.Message}");
     }

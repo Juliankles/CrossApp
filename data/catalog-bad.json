@@ -1,0 +1,22 @@
+[
+  {
+    "Id": "C-201",
+    "Isbn": "978-966-03-1234-5",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-202",
+    "Isbn": "978-966-03-2345-6",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-203",
+    "Isbn": "",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-204",
+    "Isbn": "978-966-03-4567-8",
+    "IsIssued": true
+  }
+]

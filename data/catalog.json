@@ -1,0 +1,87 @@
+[
+  {
+    "Id": "C-101",
+    "Isbn": "978-966-03-1234-5",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-102",
+    "Isbn": "978-966-03-2345-6",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-103",
+    "Isbn": "978-966-03-3456-7",
+    "IsIssued": true
+  },
+  {
+    "Id": "C-104",
+    "Isbn": "978-966-03-4567-8",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-105",
+    "Isbn": "978-966-03-5678-9",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-106",
+    "Isbn": "978-966-03-6789-0",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-107",
+    "Isbn": "978-966-03-7890-1",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-108",
+    "Isbn": "978-966-03-8901-2",
+    "IsIssued": true
+  },
+  {
+    "Id": "C-109",
+    "Isbn": "978-966-03-9012-3",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-110",
+    "Isbn": "978-966-03-0123-4",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-111",
+    "Isbn": "978-966-03-1111-1",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-112",
+    "Isbn": "978-966-03-2222-2",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-113",
+    "Isbn": "978-966-03-1234-5",
+    "IsIssued": true
+  },
+  {
+    "Id": "C-114",
+    "Isbn": "978-966-03-2345-6",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-115",
+    "Isbn": "978-966-03-3456-7",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-116",
+    "Isbn": "978-966-03-4567-8",
+    "IsIssued": false
+  },
+  {
+    "Id": "C-117",
+    "Isbn": "978-966-03-5678-9",
+    "IsIssued": false
+  }
+]
