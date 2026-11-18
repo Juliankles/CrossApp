@@ -224,3 +224,66 @@ dotnet run --project src/Cli -- --file report-sum
 У демо `report-lazy` перший `Count()` дав 3, а після додавання в джерело простроченої видачі L-999 другий `Count()` дав 4, бо запит виконався вже на зміненому списку.
 Після `ToList()` результат зафіксовано: коли джерело очистили, запит дає 0, а у знімку лишилось 4 записи.
 
+
+
+## Лабораторна 8: async/await, скасування, доменні винятки, unit-тести
+
+### Структура
+- `Core/DomainException.cs` — виняток для порушення бізнес-правил («примірник уже видано», «не перебуває у видачі», «видача вже закрита», «примірника немає», «id уже існує»)
+- `Core/Abstractions/ICatalogImporter.cs` — асинхронний контракт імпорту каталогу
+- `Core/Storage/JsonCatalogImporter.cs` — асинхронне читання JSON (`FileStream(useAsync: true)` + `JsonSerializer.DeserializeAsync`), перевірка скасування в циклі, `DomainException` з номером запису для поганих даних
+- `Core/Services/LendingService.cs` — `ImportAsync(importer, path, ct)`: повторний імпорт не дублює записи, подія `BookAdded` на кожен доданий примірник
+- `Cli/Program.cs` — top-level `await`, Ctrl+C через `Console.CancelKeyPress`, тайм-аут через `CancelAfter`, окремі `catch` для скасування, доменної та технічних помилок
+- `data/catalog.json` (17 примірників), `data/catalog-bad.json` (третій запис без ISBN)
+- `tests/Core.Tests` — xUnit-тести; посилається лише на Core
+
+### Види помилок
+| Тип | Коли | Приклад |
+|---|---|---|
+| DomainException | порушено бізнес-правило або погані дані у файлі | повторна видача, повернення невиданого примірника, «Запис 3: ISBN не може бути порожнім» |
+| ArgumentException | некоректний аргумент методу | порожній ідентифікатор читача в `IssueCopy` |
+| IOException / JsonException | технічна помилка | немає файлу, файл не є JSON |
+| OperationCanceledException | очікуване скасування, не помилка | Ctrl+C, тайм-аут |
+
+### Імпорт
+Команди запускати з кореня репозиторію (шлях `data/...` береться від поточної папки):
+
+```
+dotnet run --project src/Cli -- import
+dotnet run --project src/Cli -- --file import
+dotnet run --project src/Cli -- import-bad
+dotnet run --project src/Cli -- import-missing
+```
+
+З `--file` імпорт іде у файлове сховище: перший запуск додає 17 записів, повторний — 0 (записи з такими id уже є).
+
+### Як перевірити скасування
+
+```
+dotnet run --project src/Cli -- import-slow
+```
+
+Імпортер чекає 0,5 с на кожен запис, а тайм-аут становить 2 с, тому імпорт не встигає завершитися і виводиться «Імпорт скасовано.». Під час `import-slow` можна також натиснути Ctrl+C — результат той самий, без стектрейсу.
+
+### Тести
+
+```
+dotnet test
+```
+
+Тести використовують `InMemoryBookStore` і власний набір `TestData` (не SampleData); єдиний тест із диском створює тимчасовий файл у `Path.GetTempPath()` і видаляє його у `finally`.
+
+| Тест | Що перевіряє | Очікуваний результат |
+|---|---|---|
+| ReturnCopy_WhenNotIssued_ThrowsDomainException_AndKeepsState | повернення невиданого примірника | DomainException, примірник лишається на полиці |
+| IssueCopy_WhenAlreadyIssued_ThrowsDomainException | повторна видача | DomainException «уже видано» |
+| IssueCopy_WithEmptyReader_ThrowsArgumentException_AndKeepsState (2 випадки) | порожній читач | ArgumentException, стан не змінився |
+| AddBook_RaisesChangedExactlyOnce | подія при додаванні | рівно одна подія BookAdded |
+| IssueCopy_WhenCopyMissing_ThrowsDomainException_AndRaisesNoEvent | невдала операція | DomainException, подій немає |
+| Overdue_CountsOnlyOpenLoansPastDueDate (3 випадки) | звіт прострочених на різні дати | 0, 1, 2 |
+| TopReaders_IsDeterministic | топ-N при нічиїй | R-1, R-2 |
+| CopiesPerEdition_OnEmptySource_ReturnsZeros | агрегати на порожніх даних | нулі без винятку |
+| ImportAsync_WhenAlreadyCancelled_Throws | скасований токен | OperationCanceledException |
+| LoadAsync_WithInvalidRecord_ThrowsDomainException_WithRecordNumber | зіпсований файл | DomainException «Запис 2», InnerException — ArgumentException |
+| ImportAsync_IsIdempotent_AndRaisesEventPerAddedCopy | повторний імпорт | 2, потім 0; дві події |
+
