@@ -143,8 +143,11 @@ BookDto/BookCopyDto переносять дані (з файлу чи для з�
 Cli → LendingService → IBookStore → InMemoryBookStore | FileBookStore
 
 ### Запуск
+
+```
 dotnet run --project src/Cli            — сховище в пам'яті, дані зникають після виходу
 dotnet run --project src/Cli -- --file  — файлове сховище, дані зберігаються між запусками
+```
 
 Файл даних: `data/books.json` поруч зі зібраним застосунком (bin/Debug/net10.0/data/books.json).
 Формат: JSON-список BookCopyDto (Id, Isbn, IsIssued); видання і примірники зберігаються в одному списку, видання визначається полем Isbn.
@@ -172,8 +175,11 @@ Core не пише ні в консоль, ні у файл: це роблять
 Після `service.Changed -= OnLendingChanged` операції виконуються, але рядків у консолі й лозі немає; лічильник продовжує рахувати.
 
 ### Запуск
+
+```
 dotnet run --project src/Cli
 dotnet run --project src/Cli -- --file
+```
 
 Лог: `logs/app.log` поруч зі зібраним застосунком (bin/Debug/net10.0/logs/app.log), каталог створюється автоматично.
 
@@ -202,12 +208,15 @@ dotnet run --project src/Cli -- --file
 Видання і видачі беруться з SampleData (сховище для них з'явиться разом із базою даних), примірники — зі сховища через `service.All()`, тому `report-sum` працює і з `--file`.
 
 ### Запуск
+
+```
 dotnet run --project src/Cli -- report-top
 dotnet run --project src/Cli -- report-overdue
 dotnet run --project src/Cli -- report-genres
 dotnet run --project src/Cli -- report-sum
 dotnet run --project src/Cli -- report-lazy
 dotnet run --project src/Cli -- --file report-sum
+```
 
 ### Відкладене виконання
 Метод `ReportService.OverdueQuery` повертає `IEnumerable<Loan>` без `ToList`, тому в момент виклику запит лише описується, а джерело не перебирається.
