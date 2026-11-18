@@ -46,7 +46,7 @@ public sealed class Loan
     public void Close(DateOnly returnedOn)
     {
         if (IsClosed)
-            throw new InvalidOperationException($"Видача {Id} вже закрита");
+            throw new DomainException($"Видача {Id} вже закрита");
 
         if (returnedOn < IssuedOn)
             throw new ArgumentOutOfRangeException(

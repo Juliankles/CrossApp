@@ -31,8 +31,7 @@ public sealed class BookCopy
     public void Issue()
     {
         if (_isIssued)
-            throw new InvalidOperationException(
-                $"Примірник {Id} вже виданий, повторна видача неможлива");
+            throw new DomainException($"Примірник {Id} уже видано, повторна видача неможлива");
 
         _isIssued = true; 
     }
@@ -40,8 +39,7 @@ public sealed class BookCopy
     public void Return()
     {
         if (!_isIssued)
-            throw new InvalidOperationException(
-                $"Примірник {Id} не перебуває у видачі, повернення неможливе");
+            throw new DomainException($"Примірник {Id} не перебуває у видачі, повернення неможливе");
 
         _isIssued = false;
     }
