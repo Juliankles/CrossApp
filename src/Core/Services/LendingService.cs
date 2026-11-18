@@ -56,6 +56,30 @@ public sealed class LendingService(IBookStore store)
         return true;
     }
 
+    // Асинхронний імпорт каталогу: імпортер приходить параметром (ручний DI),
+    // токен скасування передається далі в LoadAsync і перевіряється в циклі.
+    public async Task<int> ImportAsync(ICatalogImporter importer, string path, CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(importer);
+
+        IReadOnlyList<BookCopy> items = await importer.LoadAsync(path, ct);
+
+        int added = 0;
+        foreach (BookCopy item in items)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (_store.GetById(item.Id) is not null)
+                continue;                                   // повторний імпорт не дублює записи
+
+            _store.Add(item);
+            OnChanged(item, LendingChangeKind.BookAdded);   // подія для кожного доданого примірника
+            added++;
+        }
+
+        return added;
+    }
+
     public IReadOnlyList<BookCopy> All() => _store.List();
 
     public BookCopy? Find(string copyId) => _store.GetById(copyId);
@@ -69,5 +93,5 @@ public sealed class LendingService(IBookStore store)
 
     private BookCopy GetExisting(string copyId) =>
         _store.GetById(copyId)
-        ?? throw new InvalidOperationException($"Примірника з id={copyId} немає у сховищі.");
+        ?? throw new DomainException($"Примірника з id={copyId} немає у сховищі.");
 }

@@ -2,8 +2,6 @@ using Core.Domain;
 
 namespace Core.Reports;
 
-// Усі звіти — чисті функції: приймають колекцію (IEnumerable), повертають готовий результат у вигляді DTO.
-// Сервіс нічого не друкує, вивід робить Cli.
 public static class ReportService
 {
     // 1) Топ-N читачів за кількістю видач.
