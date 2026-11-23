@@ -7,8 +7,6 @@ namespace Core.Storage;
 
 public sealed class FileBookStore(string path) : IBookStore
 {
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
-
     private readonly Dictionary<string, BookCopy> _cache = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _path = Path.GetFullPath(path);
     private bool _loaded;
@@ -17,17 +15,23 @@ public sealed class FileBookStore(string path) : IBookStore
     {
         if (_loaded) return;
 
-        if (File.Exists(_path))
-        {
-            List<BookCopyDto> dtos =
-                JsonSerializer.Deserialize<List<BookCopyDto>>(File.ReadAllText(_path))
-                ?? new List<BookCopyDto>();
+        if (!File.Exists(_path)) { _loaded = true; return; }   // файлу ще немає — сховище порожнє
 
-            foreach (BookCopyDto dto in dtos)
-            {
-                BookCopy copy = BookCopy.FromDto(dto);
-                _cache[copy.Id] = copy;
-            }
+        List<BookCopyDto> dtos;
+        try
+        {
+            dtos = JsonSerializer.Deserialize<List<BookCopyDto>>(File.ReadAllText(_path), JsonFiles.Options) ?? [];
+        }
+        catch (JsonException ex)
+        {
+            throw new StorageException($"Файл даних {_path} пошкоджено: {ex.Message}", ex);
+        }
+
+        _cache.Clear();
+        foreach (BookCopyDto dto in dtos)
+        {
+            BookCopy copy = BookCopy.FromDto(dto);   // повторно перевіряє інваріанти
+            _cache[copy.Id] = copy;
         }
 
         _loaded = true;
@@ -35,9 +39,9 @@ public sealed class FileBookStore(string path) : IBookStore
 
     private void Flush()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-        File.WriteAllText(_path,
-            JsonSerializer.Serialize(_cache.Values.Select(c => c.ToDto()).ToList(), Options));
+        // Атомарний запис через .tmp + File.Move (див. AtomicFile)
+        List<BookCopyDto> dtos = _cache.Values.Select(c => c.ToDto()).ToList();
+        AtomicFile.WriteAllText(_path, JsonSerializer.Serialize(dtos, JsonFiles.Options));
     }
 
     public IReadOnlyList<BookCopy> List()
