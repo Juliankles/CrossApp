@@ -79,7 +79,7 @@ dotnet publish src/Cli -c Release -r win-x64 --self-contained false -o publish-f
 
 ### Формат файлу даних
 
-Файл: `data/sample.csv`
+Файл: `data/sample.csv` (з лаби 9 — `samples/sample.csv`)
 Роздільник: `;` (крапка з комою)
 Кодування: UTF-8
 Перший рядок — заголовок (id;isbn;title;year)
@@ -234,7 +234,7 @@ dotnet run --project src/Cli -- --file report-sum
 - `Core/Storage/JsonCatalogImporter.cs` — асинхронне читання JSON (`FileStream(useAsync: true)` + `JsonSerializer.DeserializeAsync`), перевірка скасування в циклі, `DomainException` з номером запису для поганих даних
 - `Core/Services/LendingService.cs` — `ImportAsync(importer, path, ct)`: повторний імпорт не дублює записи, подія `BookAdded` на кожен доданий примірник
 - `Cli/Program.cs` — top-level `await`, Ctrl+C через `Console.CancelKeyPress`, тайм-аут через `CancelAfter`, окремі `catch` для скасування, доменної та технічних помилок
-- `data/catalog.json` (17 примірників), `data/catalog-bad.json` (третій запис без ISBN)
+- `samples/catalog.json` (17 примірників), `samples/catalog-bad.json` (третій запис без ISBN); до лаби 9 лежали в `data/`
 - `tests/Core.Tests` — xUnit-тести; посилається лише на Core
 
 ### Види помилок
@@ -246,7 +246,7 @@ dotnet run --project src/Cli -- --file report-sum
 | OperationCanceledException | очікуване скасування, не помилка | Ctrl+C, тайм-аут |
 
 ### Імпорт
-Команди запускати з кореня репозиторію (шлях `data/...` береться від поточної папки):
+Файли-зразки копіюються поруч із програмою (`bin/.../samples`), тому команди працюють з будь-якої папки:
 
 ```
 dotnet run --project src/Cli -- import
@@ -286,4 +286,101 @@ dotnet test
 | ImportAsync_WhenAlreadyCancelled_Throws | скасований токен | OperationCanceledException |
 | LoadAsync_WithInvalidRecord_ThrowsDomainException_WithRecordNumber | зіпсований файл | DomainException «Запис 2», InnerException — ArgumentException |
 | ImportAsync_IsIdempotent_AndRaisesEventPerAddedCopy | повторний імпорт | 2, потім 0; дві події |
+
+### Команди для повернення до 8 лаби
+
+```
+git worktree add ..\CrossApp-lab08 lab08
+cd ..\CrossApp-lab08
+```
+
+Прибрати папку після перегляду:
+
+```
+cd C:\dev\CrossApp
+git worktree remove ..\CrossApp-lab08
+```
+
+
+
+## Лабораторна 9: Шляхи, JSON, конфігурація, Secrets
+
+### Структура
+- `Core/Configuration/AppOptions.cs` — налаштування: `EnvironmentName`, `Logging`, `Storage`, `Library`; `StorageOptions.ResolveFullPath` будує шлях через `Path.Combine`
+- `Core/Storage/FileBookStore.cs` — шлях приходить із конфігурації; JSON у camelCase, кирилиця без `\uXXXX`; атомарний запис (`.tmp` + `File.Move`); пошкоджений файл — `StorageException`
+- `Core/Storage/CatalogJsonFile.cs`, `Core/Dto/EditionDto.cs` — експорт та імпорт каталогу видань (isbn, title, author, year, copies)
+- `Core/Storage/AtomicFile.cs`, `Core/Storage/JsonFiles.cs` — атомарний запис і спільні налаштування JSON
+- `Cli/appsettings.json` (у git, без секретів), `appsettings.Development.json`, `appsettings.Production.json`
+- `samples/` — файли-зразки для імпорту (раніше `data/`); `data/` тепер створюється під час роботи і є в `.gitignore`
+
+### Порядок джерел конфігурації
+Кожне наступне джерело перекриває попереднє:
+
+```
+appsettings.json → appsettings.{Environment}.json → user-secrets → змінні CROSSAPP_* → аргументи командного рядка
+```
+
+Середовище обирається змінною `CROSSAPP_ENVIRONMENT` (за замовчуванням `Development`).
+
+### Профілі
+| Профіль | Рівень логу | Де лежать дані |
+|---|---|---|
+| Development | Debug (додатково друкуються джерела конфігурації) | `bin/Debug/net10.0/data/` поруч із програмою |
+| Production | Warning | `%LOCALAPPDATA%\CrossApp\data\` (Windows), `~/.local/share/CrossApp/data/` (Linux) |
+
+### Таблиця ключів
+| Ключ | За замовчуванням | Змінна середовища | Опис |
+|---|---|---|---|
+| EnvironmentName | Production / Development | — (профіль: `CROSSAPP_ENVIRONMENT`) | назва профілю |
+| Logging:MinimumLevel | Warning (Development: Debug) | `CROSSAPP_Logging__MinimumLevel` | детальність виводу |
+| Storage:BaseFolder | App (Production: LocalAppData) | `CROSSAPP_Storage__BaseFolder` | базова папка для відносного DataPath |
+| Storage:DataPath | data | `CROSSAPP_Storage__DataPath` або `CROSSAPP_DATA_PATH` | каталог даних |
+| Storage:FileName | books.json | `CROSSAPP_Storage__FileName` | сховище примірників (`--file`) |
+| Storage:ExportFileName | catalog-export.json | `CROSSAPP_Storage__ExportFileName` | файл експорту каталогу |
+| Library:LoanDays | 14 | `CROSSAPP_Library__LoanDays` | строк видачі в днях |
+| Integration:ApiKey | — (лише user-secrets / env) | `CROSSAPP_Integration__ApiKey` | секрет; друкується лише факт наявності |
+
+### Експорт та імпорт каталогу
+
+```
+dotnet run --project src/Cli -- export
+dotnet run --project src/Cli -- import-editions
+```
+
+### Перевизначення змінними середовища
+cmd:
+
+```
+set CROSSAPP_DATA_PATH=C:\Temp\crossapp-data
+dotnet run --project src/Cli -- export
+set CROSSAPP_DATA_PATH=
+```
+
+PowerShell:
+
+```
+$env:CROSSAPP_DATA_PATH = "C:\Temp\crossapp-data"
+dotnet run --project src/Cli -- export
+Remove-Item Env:CROSSAPP_DATA_PATH
+```
+
+bash:
+
+```
+CROSSAPP_DATA_PATH=/tmp/crossapp-data dotnet run --project src/Cli -- export
+```
+
+Інші ключі так само, з подвійним підкресленням замість двокрапки: `CROSSAPP_Library__LoanDays=30`, `CROSSAPP_ENVIRONMENT=Production`.
+
+### Секрет (user-secrets)
+
+```
+dotnet user-secrets init --project src/Cli
+dotnet user-secrets set "Integration:ApiKey" "local-dev-key" --project src/Cli
+dotnet user-secrets list --project src/Cli
+```
+
+У репозиторії зберігається лише `UserSecretsId` у `Cli.csproj`. Саме значення лежить поза репозиторієм:
+- Windows: `%APPDATA%\Microsoft\UserSecrets\<UserSecretsId>\secrets.json`
+- Linux / macOS: `~/.microsoft/usersecrets/<UserSecretsId>/secrets.json`
 
