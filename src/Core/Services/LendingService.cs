@@ -4,9 +4,14 @@ using Core.Events;
 
 namespace Core.Services;
 
-public sealed class LendingService(IBookStore store)
+public sealed class LendingService(IBookStore store, int loanDays = Loan.LoanDays)
 {
     private readonly IBookStore _store = store ?? throw new ArgumentNullException(nameof(store));
+
+    // Строк видачі за замовчуванням; у Cli приходить із конфігурації (Library:LoanDays)
+    private readonly int _loanDays = loanDays > 0
+        ? loanDays
+        : throw new ArgumentOutOfRangeException(nameof(loanDays), loanDays, "Строк видачі має бути більшим за нуль");
 
     public event EventHandler<LendingChangedEventArgs>? Changed;
 
@@ -23,18 +28,20 @@ public sealed class LendingService(IBookStore store)
         return copy;
     }
 
-    public void IssueCopy(string copyId, string readerId, int days = 14)
+    public void IssueCopy(string copyId, string readerId, int? days = null)
     {
+        int loanDays = days ?? _loanDays;
+
         if (string.IsNullOrWhiteSpace(readerId))
             throw new ArgumentException("Ідентифікатор читача обов'язковий", nameof(readerId));
-        if (days <= 0)
-            throw new ArgumentOutOfRangeException(nameof(days), days, "Строк видачі має бути більшим за нуль");
+        if (loanDays <= 0)
+            throw new ArgumentOutOfRangeException(nameof(days), loanDays, "Строк видачі має бути більшим за нуль");
 
         BookCopy copy = GetExisting(copyId);
         copy.Issue();         
         _store.Update(copy);
 
-        DateOnly dueDate = DateOnly.FromDateTime(DateTime.Today).AddDays(days);
+        DateOnly dueDate = DateOnly.FromDateTime(DateTime.Today).AddDays(loanDays);
         OnChanged(copy, LendingChangeKind.CopyIssued, readerId.Trim(), dueDate);
     }
 

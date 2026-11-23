@@ -1,4 +1,5 @@
 using Core.Domain;
+using Core.Dto;
 
 namespace Core.Reports;
 
@@ -47,5 +48,17 @@ public static class ReportService
         return perEdition.Count == 0
             ? (0, 0, 0d, 0)
             : (perEdition.Count, perEdition.Sum(), perEdition.Average(), perEdition.Max());
+    }
+
+    // 6) Каталог видань для експорту: кожне видання + кількість його примірників у сховищі
+    public static IReadOnlyList<EditionDto> Editions(IEnumerable<Book> books, IEnumerable<BookCopy> copies)
+    {
+        Dictionary<string, int> copiesByIsbn = copies
+            .GroupBy(c => c.Isbn, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.OrdinalIgnoreCase);
+
+        return books
+            .Select(b => new EditionDto(b.Isbn, b.Title, b.Author, b.Year, copiesByIsbn.GetValueOrDefault(b.Isbn)))
+            .ToList();
     }
 }
