@@ -485,3 +485,7 @@ $RECYCLE.BIN/
 
 publish-self-contained/
 publish-framework-dependent/
+
+# CrossApp: дані, що створюються під час роботи програми, і тимчасові файли атомарного запису
+data/
+*.tmp
