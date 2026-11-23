@@ -1,11 +1,15 @@
+using System.Reflection;
 using System.Text.Json;
 using Core;
 using Core.Abstractions;
+using Core.Configuration;
 using Core.Domain;
+using Core.Dto;
 using Core.Events;
 using Core.Reports;
 using Core.Services;
 using Core.Storage;
+using Microsoft.Extensions.Configuration;
 
 Console.OutputEncoding = System.Text.Encoding.UTF8;
 
@@ -18,19 +22,61 @@ Console.WriteLine($"Runtime         : {report.FrameworkDescription}");
 Console.WriteLine($"RID             : {report.DetectedRid}");
 Console.WriteLine(new string('-', 52));
 
+// Конфігурація (лаба 9). Порядок джерел: пізніше джерело перекриває попереднє
+string envName = Environment.GetEnvironmentVariable("CROSSAPP_ENVIRONMENT") ?? "Development";
+
+IConfigurationRoot config = new ConfigurationBuilder()
+    .SetBasePath(AppContext.BaseDirectory)                          // файли шукаються поруч із програмою, а не в cwd
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+    .AddJsonFile($"appsettings.{envName}.json", optional: true)
+    .AddUserSecrets(Assembly.GetExecutingAssembly(), optional: true)
+    .AddEnvironmentVariables(prefix: "CROSSAPP_")                   // CROSSAPP_Storage__DataPath, CROSSAPP_Library__LoanDays
+    .AddCommandLine(args)                                           // --Storage:DataPath=...
+    .Build();
+
+AppOptions options = config.Get<AppOptions>() ?? new AppOptions();
+
+// Проста змінна CROSSAPP_DATA_PATH перекриває розділ Storage:DataPath
+string? legacyDataPath = Environment.GetEnvironmentVariable("CROSSAPP_DATA_PATH");
+var storage = new StorageOptions
+{
+    BaseFolder = options.Storage.BaseFolder,
+    DataPath = string.IsNullOrWhiteSpace(legacyDataPath) ? options.Storage.DataPath : legacyDataPath,
+    FileName = options.Storage.FileName,
+    ExportFileName = options.Storage.ExportFileName
+};
+
+string dataPath = storage.ResolveFullPath(AppContext.BaseDirectory, storage.FileName);
+string exportPath = storage.ResolveFullPath(AppContext.BaseDirectory, storage.ExportFileName);
+bool debug = options.Logging.MinimumLevel.Equals("Debug", StringComparison.OrdinalIgnoreCase);
+
+// Секрет: друкуємо лише факт наявності, саме значення — ніколи
+string? apiKey = config["Integration:ApiKey"];
+
+Console.WriteLine($"Середовище : {options.EnvironmentName}");
+Console.WriteLine($"Рівень логу: {options.Logging.MinimumLevel}");
+Console.WriteLine($"Файл даних : {dataPath}");
+Console.WriteLine($"Експорт    : {exportPath}");
+Console.WriteLine($"Строк видачі: {options.Library.LoanDays} дн.");
+Console.WriteLine(apiKey is null ? "ApiKey     : не заданий" : $"ApiKey     : присутній, довжина {apiKey.Length}");
+
+if (debug)
+{
+    // У профілі Development показуємо, з яких джерел зібрано конфігурацію (у порядку перекриття)
+    foreach (IConfigurationProvider provider in config.Providers)
+        Console.WriteLine($"[debug] джерело: {provider}");
+}
+
 // Composition root
 bool useFile = args.Contains("--file");
-string dataPath = Path.Combine(AppContext.BaseDirectory, "data", "books.json");
 
 IBookStore store = useFile
     ? new FileBookStore(dataPath)
     : new InMemoryBookStore(SampleData.Copies());
 
-var service = new LendingService(store);
+var service = new LendingService(store, options.Library.LoanDays);
 
 Console.WriteLine($"Сховище: {store.GetType().Name}");
-if (useFile)
-    Console.WriteLine($"Файл: {dataPath}");
 
 // Лог-файл (лаба 6)
 string logPath = Path.Combine(AppContext.BaseDirectory, "logs", "app.log");
@@ -69,7 +115,6 @@ service.Changed += (_, _) => changes++;
 
 // Дані для звітів (лаба 7)
 DateOnly today = DateOnly.FromDateTime(DateTime.Today);
-IReadOnlyList<BookCopy> copies = service.All();          // примірники — зі сховища (пам'ять або файл)
 IReadOnlyList<Book> books = SampleData.Books();          // видання
 IReadOnlyList<Loan> loans = SampleData.Loans(today);     // видачі
 
@@ -78,70 +123,117 @@ string command = args.FirstOrDefault(a => !a.StartsWith("--")) ?? "report-top";
 Console.WriteLine($"Команда: {command}");
 Console.WriteLine();
 
-switch (command)
+try
 {
-    case "report-top":
-        Console.WriteLine("=== Топ-5 читачів за кількістю видач ===");
-        PrintReaders(ReportService.TopReaders(loans, 5));
-        break;
+    switch (command)
+    {
+        case "report-top":
+            Console.WriteLine("=== Топ-5 читачів за кількістю видач ===");
+            PrintReaders(ReportService.TopReaders(loans, 5));
+            break;
 
-    case "report-overdue":
-        Console.WriteLine($"=== Прострочені видачі на {today:dd.MM.yyyy} ===");
-        PrintOverdue(ReportService.Overdue(loans, today));
-        break;
+        case "report-overdue":
+            Console.WriteLine($"=== Прострочені видачі на {today:dd.MM.yyyy} ===");
+            PrintOverdue(ReportService.Overdue(loans, today));
+            break;
 
-    case "report-genres":
-        Console.WriteLine("=== Видання за жанрами ===");
-        PrintGenres(ReportService.ByGenre(books));
-        break;
+        case "report-genres":
+            Console.WriteLine("=== Видання за жанрами ===");
+            PrintGenres(ReportService.ByGenre(books));
+            break;
 
-    case "report-sum":
-        Console.WriteLine("=== Примірники на одне видання ===");
-        PrintTotals(ReportService.CopiesPerEdition(copies));
-        break;
+        case "report-sum":
+            Console.WriteLine("=== Примірники на одне видання ===");
+            PrintTotals(ReportService.CopiesPerEdition(service.All()));
+            break;
 
-    case "report-lazy":
-        RunLazyDemo();
-        break;
+        case "report-lazy":
+            RunLazyDemo();
+            break;
 
-    case "report-empty":
-        RunEmptyCheck();
-        break;
+        case "report-empty":
+            RunEmptyCheck();
+            break;
 
-    case "events":
-        RunEventsScenario();
-        break;
+        case "events":
+            RunEventsScenario();
+            break;
 
-    case "import":
-        await RunImportAsync("catalog.json", new JsonCatalogImporter());
-        break;
+        case "import":
+            await RunImportAsync("catalog.json", new JsonCatalogImporter());
+            break;
 
-    case "import-bad":
-        await RunImportAsync("catalog-bad.json", new JsonCatalogImporter());
-        break;
+        case "import-bad":
+            await RunImportAsync("catalog-bad.json", new JsonCatalogImporter());
+            break;
 
-    case "import-slow":
-        // 0,5 с на кожен запис і тайм-аут 2 с: імпорт гарантовано не встигне завершитися
-        await RunImportAsync("catalog.json", new JsonCatalogImporter(TimeSpan.FromMilliseconds(500)),
-                             timeout: TimeSpan.FromSeconds(2));
-        break;
+        case "import-slow":
+            // 0,5 с на кожен запис і тайм-аут 2 с: імпорт гарантовано не встигне завершитися
+            await RunImportAsync("catalog.json", new JsonCatalogImporter(TimeSpan.FromMilliseconds(500)),
+                                 timeout: TimeSpan.FromSeconds(2));
+            break;
 
-    case "import-missing":
-        await RunImportAsync("no-such-file.json", new JsonCatalogImporter());
-        break;
+        case "import-missing":
+            await RunImportAsync("no-such-file.json", new JsonCatalogImporter());
+            break;
 
-    default:
-        Console.WriteLine("Команди: report-top | report-overdue | report-genres | report-sum | report-lazy | report-empty | events");
-        Console.WriteLine("         import | import-bad | import-slow | import-missing");
-        break;
+        case "export":
+            RunExport();
+            break;
+
+        case "import-editions":
+            RunImportEditions();
+            break;
+
+        default:
+            Console.WriteLine("Команди: report-top | report-overdue | report-genres | report-sum | report-lazy | report-empty | events");
+            Console.WriteLine("         import | import-bad | import-slow | import-missing | export | import-editions");
+            break;
+    }
+}
+catch (StorageException ex)          // технічна помилка: пошкоджений файл даних
+{
+    Console.WriteLine($"Помилка сховища: {ex.Message}");
+    return 1;
 }
 
 return 0;
 
+// Експорт усього каталогу видань у JSON (лаба 9)
+void RunExport()
+{
+    IReadOnlyList<EditionDto> editions = ReportService.Editions(books, service.All());
+    CatalogJsonFile.Write(exportPath, editions);
+
+    Console.WriteLine($"Експортовано {editions.Count} записів.");
+    Console.WriteLine($"Файл: {exportPath}");
+}
+
+// Імпорт каталогу видань із JSON (лаба 9)
+void RunImportEditions()
+{
+    try
+    {
+        IReadOnlyList<EditionDto> editions = CatalogJsonFile.Read(exportPath);
+
+        Console.WriteLine($"Імпортовано {editions.Count} видань, примірників усього {editions.Sum(e => e.Copies)}:");
+        foreach (EditionDto e in editions)
+            Console.WriteLine($"  {e.Isbn}  {e.Title,-34} {e.Year}  примірників: {e.Copies}");
+    }
+    catch (FileNotFoundException)
+    {
+        Console.WriteLine($"Файл не знайдено: {exportPath}. Спочатку виконайте команду export.");
+    }
+    catch (DomainException ex)
+    {
+        Console.WriteLine($"Дані відхилено: {ex.Message}");
+    }
+}
+
 // Асинхронний імпорт каталогу (лаба 8): Ctrl+C або тайм-аут скасовують операцію
 async Task RunImportAsync(string fileName, ICatalogImporter importer, TimeSpan? timeout = null)
 {
-    string importPath = Path.GetFullPath(Path.Combine("data", fileName));
+    string importPath = Path.Combine(AppContext.BaseDirectory, "samples", fileName);   // файли-зразки копіюються поруч із програмою
     Console.WriteLine($"=== Імпорт каталогу: {importPath} ===");
     Console.WriteLine("(Ctrl+C — скасувати імпорт)");
 
