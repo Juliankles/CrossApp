@@ -376,7 +376,7 @@ CROSSAPP_DATA_PATH=/tmp/crossapp-data dotnet run --project src/Cli -- export
 
 ```
 dotnet user-secrets init --project src/Cli
-dotnet user-secrets set "Integration:ApiKey" "local-dev-key" --project src/Cli
+dotnet user-secrets set "Integration:ApiKey" "<ваш-ключ>" --project src/Cli
 dotnet user-secrets list --project src/Cli
 ```
 
